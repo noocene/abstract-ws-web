@@ -23,7 +23,7 @@ pub struct Socket {
     on_message: Closure<dyn FnMut(MessageEvent)>,
     #[allow(dead_code)]
     on_close: Closure<dyn FnMut(JsValue)>,
-    messages: UnboundedReceiver<Vec<u8>>,
+    messages: UnboundedReceiver<Result<Vec<u8>, JsValue>>,
 }
 
 impl Socket {
@@ -64,13 +64,17 @@ impl Socket {
                     let buffer = Uint8Array::new(&e.data());
                     let mut data = vec![0u8; buffer.length() as usize];
                     buffer.copy_to(&mut data);
-                    let _ = sender.unbounded_send(data);
+                    let _ = sender.unbounded_send(Ok(data));
                 }) as Box<dyn FnMut(_)>)
             };
 
             socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
 
-            let on_close = Closure::wrap(Box::new(move |_: JsValue| {
+            let c_socket = socket.clone();
+
+            let on_close = Closure::wrap(Box::new(move |e: JsValue| {
+                let _ = sender.unbounded_send(Err(e));
+                c_socket.set_onmessage(None);
                 sender.close_channel();
             }) as Box<dyn FnMut(_)>);
 
@@ -97,7 +101,7 @@ impl Drop for Socket {
 }
 
 impl Stream for Socket {
-    type Item = Vec<u8>;
+    type Item = Result<Vec<u8>, JsValue>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.messages).poll_next(cx)
