@@ -5,7 +5,7 @@ use futures::{
         mpsc::{unbounded, UnboundedReceiver},
         oneshot::channel,
     },
-    future::{ready, select, Ready},
+    future::select,
     Future, Sink, Stream,
 };
 use js_sys::Uint8Array;
@@ -126,13 +126,7 @@ impl Sink<Vec<u8>> for Socket {
     }
 }
 
-impl AbstractSocket for Socket {
-    type Close = Ready<Result<(), JsValue>>;
-
-    fn close(self) -> Self::Close {
-        ready(self.inner.close())
-    }
-}
+impl AbstractSocket for Socket {}
 
 pub struct Provider;
 
